@@ -12,13 +12,17 @@ const app = new Vue({
         syncRequired: false,
         serverCheckInterval: 5000,
         unsyncedTodos: [],
+        localTodos: [],
         editingTodo: null,
+        showCompleted: true,
     },
     created() {
-        this.fetchTodos();
-        this.loadLocalTodos();
-        this.checkServerStatus();
-        setInterval(this.checkServerStatus, this.serverCheckInterval);
+        (async () => {
+            await this.checkServerStatus();
+            this.loadTodos();
+            console.log(this.todos);
+            setInterval(this.checkServerStatus, this.serverCheckInterval);
+        })();
     },
     methods: {
         formatDate(dateString) {
@@ -32,26 +36,25 @@ const app = new Vue({
                 timeZoneName: 'short'
             }).format(date);
         },
-        async fetchTodos(page) {
+        async loadTodos(page) {
             if (page === undefined) {
                 page = this.currentPage;
             }
 
             if (this.offline) {
-                return;
+                this.loadLocalTodos();
+            } else {
+                const response = await axios.get('/api/todos');
+                this.localTodos = response.data;
+                localStorage.setItem('todos', JSON.stringify(this.localTodos));
             }
 
-            try {
-                const response = await axios.get(`/api/todos?page=${page}&size=${this.pageSize}`);
-                this.todos = response.data.content;
-                this.currentPage = response.data.number;
-                this.totalPages = response.data.totalPages;
+            // Sort the localTodos by created_at in descending order
+            this.localTodos.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-                this.saveLocalTodos();
-            } catch (error) {
-                console.error('Failed to fetch todos:', error);
-                this.offline = true;
-            }
+            this.totalPages = Math.ceil(this.localTodos.length / this.pageSize);
+            this.todos = this.localTodos.slice(page * this.pageSize, (page + 1) * this.pageSize);
+            this.currentPage = page;
         },
         async addTodo() {
             const timestamp = new Date().toISOString();
@@ -63,42 +66,40 @@ const app = new Vue({
             };
 
             if (this.offline) {
-                this.todos.unshift(newTodo);
-                this.saveLocalTodos();
+                newTodo.tempId = -Date.now()
+                this.localTodos.unshift(newTodo);
                 this.syncRequired = true;
-                this.unsyncedTodos.push(newTodo);
+                this.unsyncedTodos.push({ action: 'create', todo: newTodo });
             } else {
-                try {
-                    const response = await axios.post('/api/todos', newTodo);
-                    this.todos.unshift(response.data);
-                    this.saveLocalTodos();
-                } catch (error) {
-                    console.error('Failed to add todo:', error);
-                    this.offline = true;
-                }
+                const response = await axios.post('/api/todos', newTodo);
+                newTodo.id = response.data.id;
+                this.localTodos.unshift(newTodo);
             }
 
+            localStorage.setItem('todos', JSON.stringify(this.localTodos));
             this.newTodo.content = '';
+            this.loadTodos(this.currentPage);
         },
-        editTodo(todo) {
+        startEditing(todo) {
             this.editingTodo = todo;
         },
         async updateTodo(todo) {
             todo.updatedAt = new Date().toISOString();
-            this.saveLocalTodos();
-            this.editingTodo = null;
 
             if (!this.offline) {
-                try {
-                    await axios.put(`/api/todos/${todo.id}`, todo);
-                } catch (error) {
-                    console.error('Failed to update todo:', error);
-                    this.offline = true;
-                }
-            } else {
-                this.syncRequired = true;
-                this.unsyncedTodos.push(todo);
+                await axios.put(`/api/todos/${todo.id}`, todo);
             }
+
+            const index = this.localTodos.findIndex(t => (this.offline && todo.tempId) ? t.tempId === todo.tempId : t.id === todo.id);
+            if (index !== -1) {
+                this.localTodos[index] = todo;
+                this.syncRequired = true;
+                this.unsyncedTodos.push({ action: 'update', todo });
+            }
+
+            localStorage.setItem('todos', JSON.stringify(this.localTodos));
+            this.editingTodo = null;
+            this.loadTodos(this.currentPage);
         },
         logout() {
             // Redirect to the /logout endpoint
@@ -108,54 +109,63 @@ const app = new Vue({
             todo.status = todo.status === 'PENDING' ? 'COMPLETED' : 'PENDING';
             todo.updatedAt = new Date().toISOString();
 
-            this.saveLocalTodos();
-
             if (!this.offline) {
-                try {
-                    await axios.put(`/api/todos/${todo.id}`, todo);
-                } catch (error) {
-                    console.error('Failed to update todo status:', error);
-                    this.offline = true;
-                }
-            } else {
-                this.syncRequired = true;
-                this.unsyncedTodos.push(todo);
+                await axios.put(`/api/todos/${todo.id}`, todo);
             }
+
+            const index = this.localTodos.findIndex(t => (this.offline && todo.tempId) ? t.tempId === todo.tempId : t.id === todo.id);
+            if (index !== -1) {
+                this.localTodos[index] = todo;
+                this.syncRequired = true;
+                this.unsyncedTodos.push({ action: 'update', todo });
+            }
+
+            localStorage.setItem('todos', JSON.stringify(this.localTodos));
+            this.loadTodos(this.currentPage);
         },
         async deleteTodo(todo) {
-            this.todos = this.todos.filter(t => t.id !== todo.id);
-
-            this.saveLocalTodos();
-
             if (!this.offline) {
-                try {
-                    await axios.delete(`/api/todos/${todo.id}`);
-                } catch (error) {
-                    console.error('Failed to delete todo:', error);
-                    this.offline = true;
-                }
-            } else {
-                this.syncRequired = true;
-                this.unsyncedTodos.push({ ...todo, deleted: true });
+                await axios.delete(`/api/todos/${todo.id}`);
             }
+
+            this.localTodos = this.localTodos.filter(t => (this.offline && todo.tempId) ? t.tempId !== todo.tempId : t.id !== todo.id);
+            this.syncRequired = true;
+            this.unsyncedTodos.push({ action: 'delete', todo });
+
+            localStorage.setItem('todos', JSON.stringify(this.localTodos));
+            this.loadTodos(this.currentPage);
+        },
+        toggleCompletedVisibility() {
+            this.showCompleted = !this.showCompleted;
         },
         saveLocalTodos() {
-            localStorage.setItem('todos', JSON.stringify(this.todos));
+            const allTodos = this.todos;
+            const nonDeletedTodos = allTodos.filter(todo => !todo.deleted);
+            nonDeletedTodos.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+            localStorage.setItem('todos', JSON.stringify(nonDeletedTodos));
         },
+
         loadLocalTodos() {
             const storedTodos = localStorage.getItem('todos');
             if (storedTodos) {
-                this.todos = JSON.parse(storedTodos);
+                this.localTodos = JSON.parse(storedTodos);
+                this.totalPages = Math.ceil(this.localTodos.length / this.pageSize);
             }
         },
         async checkServerStatus() {
             try {
-                await axios.get('/api/health');
-                this.offline = false;
-
-                if (this.syncRequired) {
-                    await this.syncTodos();
-                    this.syncRequired = false;
+                const response = await axios.get("/api/health");
+                if (response.status === 200 && response.data === "Server is online") {
+                    if (this.offline) { // If the app was offline
+                        this.offline = false;
+                        if (this.syncRequired) { // If sync is required, call syncTodos
+                            await this.syncTodos();
+                            this.syncRequired = false;
+                        }
+                    }
+                } else {
+                    this.offline = true;
                 }
             } catch (error) {
                 this.offline = true;
@@ -163,17 +173,35 @@ const app = new Vue({
         },
         async syncTodos() {
             // Sync unsynced todos with the server
-            for (const todo of this.unsyncedTodos) {
+            const idMapping = {}; // Maintain a mapping of tempId to actual ID
+
+            for (const { action, todo } of this.unsyncedTodos) {
                 try {
-                    if (todo.deleted) {
-                        await axios.delete(`/api/todos/${todo.id}`);
-                    } else if (!todo.id) {
-                        // Add new todo
+                    const todostring = JSON.stringify(todo)
+                    console.log(`Action: ${action}, Payload: ${todostring}`,  idMapping);
+                    if (action === 'delete') {
+                        const idToDelete = todo.tempId ? idMapping[todo.tempId] : todo.id;
+                        await axios.delete(`/api/todos/${idToDelete}`);
+                        this.localTodos = this.localTodos.filter(t => t.id !== idToDelete);
+                    } else if (action === 'create') {
                         const response = await axios.post('/api/todos', todo);
-                        todo.id = response.data.id;
-                    } else {
-                        // Update existing todo
-                        await axios.put(`/api/todos/${todo.id}`, todo);
+                        const newId = response.data.id;
+                        // Store the mapping of tempId to actual ID
+                        idMapping[todo.tempId] = newId;
+                        const index = this.localTodos.findIndex(t => t.tempId === todo.tempId);
+                        if (index !== -1) {
+                            this.localTodos[index].id = newId;
+                            delete this.localTodos[index].tempId;
+                            todo.id = newId;
+                            delete todo.tempId;
+                        }
+                    } else if (action === 'update') {
+                        const idToUpdate = todo.tempId ? idMapping[todo.tempId] : todo.id;
+                        await axios.put(`/api/todos/${idToUpdate}`, todo);
+                        const index = this.localTodos.findIndex(t => t.id === idToUpdate);
+                        if (index !== -1) {
+                            this.localTodos.splice(index, 1, todo);
+                        }
                     }
                 } catch (error) {
                     console.error('Failed to sync todo:', error);
@@ -185,24 +213,14 @@ const app = new Vue({
             // Clear unsynced todos
             this.unsyncedTodos = [];
 
-            // Sync deleted todos
-            const response = await axios.get('/api/todos?size=1000'); // Assuming all todos can be fetched with a large enough size value
-            const serverTodos = response.data.content;
-
-            for (const serverTodo of serverTodos) {
-                if (!this.todos.find(t => t.id === serverTodo.id)) {
-                    try {
-                        await axios.delete(`/api/todos/${serverTodo.id}`);
-                    } catch (error) {
-                        console.error('Failed to sync deleted todo:', error);
-                        this.offline = true;
-                        return;
-                    }
-                }
-            }
-
-            this.saveLocalTodos();
-        }
-    }
+            // Fetch todos from the server after syncing
+            await this.loadTodos();
+        },
+    },
+    computed: {
+        paginationArray() {
+            return Array.from({ length: this.totalPages }, (_, i) => i + 1);
+        },
+    },
 });
 

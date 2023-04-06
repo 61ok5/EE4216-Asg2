@@ -17,7 +17,8 @@
             <button class="btn btn-secondary" @click="logout">Logout</button>
         </div>
         <div v-if="offline" class="alert alert-danger mt-3" role="alert">
-            You are currently offline. Changes will be synced when you are back online.
+            You are currently offline. Changes will be synced when you are back online.<br>To ensure a smoother syncing
+            experience, we recommend making simple and minimal changes while offline.
         </div>
         <div v-else class="alert alert-success mt-3" role="alert">
             You are online. Changes are synced in real-time.
@@ -26,8 +27,12 @@
             <input type="text" class="form-control" placeholder="Enter new todo" v-model="newTodo.content"
                 @keyup.enter="addTodo">
             <button class="btn btn-primary ms-2" @click="addTodo">Create</button>
+            <button class="btn btn-outline-secondary ms-2" @click="toggleCompletedVisibility">
+                {{ showCompleted ? 'Hide Completed' : 'Show Completed' }}
+            </button>
         </div>
-        <div v-for="(todo, index) in todos" :key="todo.id" class="mb-3">
+        <div v-for="(todo, index) in todos" :key="todo.id" class="mb-3"
+            v-if="showCompleted || todo.status === 'PENDING'">
             <div class="card">
                 <div class="card-body">
                     <div class="d-flex" v-if="editingTodo !== todo">
@@ -40,7 +45,7 @@
                             </label>
                         </div>
                         <div class="ms-auto">
-                            <button class="btn btn-warning btn-sm me-2" @click="editTodo(todo)">Edit</button>
+                            <button class="btn btn-warning btn-sm me-2" @click="startEditing(todo)">Edit</button>
                             <button class="btn btn-danger btn-sm" @click="deleteTodo(todo)">Delete</button>
                         </div>
                     </div>
@@ -52,10 +57,11 @@
                     <p class="text-muted mb-0">
                         <small>
                             Created at: {{ formatDate(todo.createdAt) }}
-                            <span v-if="todo.createdAt !== todo.updatedAt"> | Updated at: {{ formatDate(todo.updatedAt)
-                                }}</span>
+                            <span v-if="todo.createdAt !== todo.updatedAt"> |
+                                Updated at: {{ formatDate(todo.updatedAt)}}</span>
                         </small>
                     </p>
+
                 </div>
             </div>
         </div>
@@ -66,14 +72,16 @@
             <nav aria-label="Page navigation">
                 <ul class="pagination">
                     <li class="page-item" :class="{ 'disabled': currentPage === 0 }">
-                        <button class="page-link" @click="fetchTodos(currentPage - 1)">Previous</button>
+                        <button class="page-link" @click="loadTodos(currentPage - 1)"
+                            :disabled="currentPage === 0">Previous</button>
                     </li>
-                    <li class="page-item" v-for="page in totalPages" :key="page"
+                    <li class="page-item" v-for="page in paginationArray" :key="page"
                         :class="{ 'active': currentPage === (page - 1) }">
-                        <button class="page-link" @click="fetchTodos(page - 1)">{{ page }}</button>
+                        <button class="page-link" @click="loadTodos(page - 1)">{{ page }}</button>
                     </li>
                     <li class="page-item" :class="{ 'disabled': currentPage === totalPages - 1 }">
-                        <button class="page-link" @click="fetchTodos(currentPage + 1)">Next</button>
+                        <button class="page-link" @click="loadTodos(currentPage + 1)"
+                            :disabled="currentPage === totalPages - 1">Next</button>
                     </li>
                 </ul>
             </nav>
