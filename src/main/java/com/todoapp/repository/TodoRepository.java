@@ -5,9 +5,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.todoapp.model.User;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import java.util.List;
+
+// import org.springframework.data.domain.Page;
+// import org.springframework.data.domain.Pageable;
 
 public interface TodoRepository extends JpaRepository<Todo, Integer> {
-    Page<Todo> findByUser(User user, Pageable pageable);
+    // Page<Todo> findByUser(User user, Pageable pageable);
+    List<Todo> findByUser(User user);
 }

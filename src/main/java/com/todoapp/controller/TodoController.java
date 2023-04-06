@@ -2,15 +2,18 @@ package com.todoapp.controller;
 
 import com.todoapp.model.Todo;
 import com.todoapp.service.TodoService;
+
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
+// import org.springframework.data.domain.Page;
+// import org.springframework.data.domain.PageRequest;
+// import org.springframework.data.domain.Pageable;
+// import org.springframework.data.domain.Sort;
 
 
 @RestController
@@ -20,16 +23,21 @@ public class TodoController {
     @Autowired
     private TodoService todoService;
 
+    // @GetMapping
+    // public ResponseEntity<Page<Todo>> getAllTodos(
+    //     @RequestParam(defaultValue = "0") int page,
+    //     @RequestParam(defaultValue = "5") int size,
+    //     @RequestParam(defaultValue = "createdAt") String sortBy,
+    //     @RequestParam(defaultValue = "desc") String direction
+    // ) {
+    //     Sort sort = "asc".equalsIgnoreCase(direction) ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
+    //     Pageable pageable = PageRequest.of(page, size, sort);
+    //     return new ResponseEntity<>(todoService.findAll(pageable), HttpStatus.OK);
+    // }
+
     @GetMapping
-    public ResponseEntity<Page<Todo>> getAllTodos(
-        @RequestParam(defaultValue = "0") int page,
-        @RequestParam(defaultValue = "5") int size,
-        @RequestParam(defaultValue = "createdAt") String sortBy,
-        @RequestParam(defaultValue = "desc") String direction
-    ) {
-        Sort sort = "asc".equalsIgnoreCase(direction) ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
-        Pageable pageable = PageRequest.of(page, size, sort);
-        return new ResponseEntity<>(todoService.findAll(pageable), HttpStatus.OK);
+    public ResponseEntity<List<Todo>> getAllTodos() {
+        return new ResponseEntity<>(todoService.findAll(), HttpStatus.OK);
     }
 
     @GetMapping("/{id}")

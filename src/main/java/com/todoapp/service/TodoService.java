@@ -13,6 +13,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -31,9 +32,14 @@ public class TodoService {
         return userRepository.findByUsername(username);
     }
 
-    public Page<Todo> findAll(Pageable pageable) {
+    // public Page<Todo> findAll(Pageable pageable) {
+    //     User user = getAuthenticatedUser();
+    //     return todoRepository.findByUser(user, pageable);
+    // }
+
+    public List<Todo> findAll() {
         User user = getAuthenticatedUser();
-        return todoRepository.findByUser(user, pageable);
+        return todoRepository.findByUser(user);
     }
 
     public Todo findById(Integer id) {

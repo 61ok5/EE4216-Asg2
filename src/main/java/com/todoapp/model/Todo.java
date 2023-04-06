@@ -82,4 +82,14 @@ public class Todo {
     public void setUser(User user) {
         this.user = user;
     }
+
+    @PrePersist
+    public void onCreate() {
+        createdAt = updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    public void onUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
 }
