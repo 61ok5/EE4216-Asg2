@@ -17,7 +17,6 @@ CREATE TABLE user_role (
     FOREIGN KEY (role_id) REFERENCES role(id)
 );
 
-
 CREATE TABLE todo (
     id INT PRIMARY KEY AUTO_INCREMENT,
     content VARCHAR(255) NOT NULL,
