@@ -49,10 +49,13 @@ const app = new Vue({
                 localStorage.setItem('todos', JSON.stringify(this.localTodos));
             }
 
-            // Sort the localTodos by created_at in descending order
+            if (!this.showCompleted) {
+                this.localTodos = this.localTodos.filter(todo => todo.status === 'PENDING');
+            }
+
             this.localTodos.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-            this.totalPages = Math.ceil(this.localTodos.length / this.pageSize);
+            this.totalPages = Math.ceil((this.localTodos.length + 1) / this.pageSize);
             this.todos = this.localTodos.slice(page * this.pageSize, (page + 1) * this.pageSize);
             this.currentPage = page;
         },
@@ -102,7 +105,6 @@ const app = new Vue({
             this.loadTodos(this.currentPage);
         },
         logout() {
-            // Redirect to the /logout endpoint
             window.location.href = '/logout';
         },
         async toggleStatus(todo) {
@@ -137,6 +139,7 @@ const app = new Vue({
         },
         toggleCompletedVisibility() {
             this.showCompleted = !this.showCompleted;
+            this.loadTodos(this.currentPage);
         },
         saveLocalTodos() {
             const allTodos = this.todos;
@@ -150,16 +153,16 @@ const app = new Vue({
             const storedTodos = localStorage.getItem('todos');
             if (storedTodos) {
                 this.localTodos = JSON.parse(storedTodos);
-                this.totalPages = Math.ceil(this.localTodos.length / this.pageSize);
+                this.totalPages = Math.ceil((this.localTodos.length + 1) / this.pageSize);
             }
         },
         async checkServerStatus() {
             try {
                 const response = await axios.get("/api/health");
                 if (response.status === 200 && response.data === "Server is online") {
-                    if (this.offline) { // If the app was offline
+                    if (this.offline) {
                         this.offline = false;
-                        if (this.syncRequired) { // If sync is required, call syncTodos
+                        if (this.syncRequired) {
                             await this.syncTodos();
                             this.syncRequired = false;
                         }
@@ -172,13 +175,13 @@ const app = new Vue({
             }
         },
         async syncTodos() {
-            // Sync unsynced todos with the server
-            const idMapping = {}; // Maintain a mapping of tempId to actual ID
+            // Sync unsynced todos when back to online, with a mapping of tempId to actual id
+            const idMapping = {};
 
             for (const { action, todo } of this.unsyncedTodos) {
                 try {
                     const todostring = JSON.stringify(todo)
-                    console.log(`Action: ${action}, Payload: ${todostring}`,  idMapping);
+                    console.log(`Action: ${action}, Payload: ${todostring}`, idMapping);
                     if (action === 'delete') {
                         const idToDelete = todo.tempId ? idMapping[todo.tempId] : todo.id;
                         await axios.delete(`/api/todos/${idToDelete}`);
@@ -186,7 +189,6 @@ const app = new Vue({
                     } else if (action === 'create') {
                         const response = await axios.post('/api/todos', todo);
                         const newId = response.data.id;
-                        // Store the mapping of tempId to actual ID
                         idMapping[todo.tempId] = newId;
                         const index = this.localTodos.findIndex(t => t.tempId === todo.tempId);
                         if (index !== -1) {
