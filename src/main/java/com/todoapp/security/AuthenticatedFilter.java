@@ -11,6 +11,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 
+// Authed user handling, redirector
 public class AuthenticatedFilter extends OncePerRequestFilter {
 
     private final RequestMatcher requestMatcher;

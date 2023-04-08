@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+// Api Health Checking, for offline mode
 @RestController
 @RequestMapping("/api")
 public class HealthController {

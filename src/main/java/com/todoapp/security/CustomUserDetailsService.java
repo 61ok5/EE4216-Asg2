@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.stream.Collectors;
 
+// Custom Auth
 @Service
 public class CustomUserDetailsService implements UserDetailsService {
 
